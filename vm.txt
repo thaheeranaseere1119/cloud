@@ -1,0 +1,88 @@
+sudo apt update
+sudo apt install nginx -y
+echo "Hello from Web Server 1" | sudo tee /var/www/html/index.html
+sudo systemctl enable --now nginx
+
+
+On VM2, run:
+sudo apt update
+sudo apt install nginx -y
+echo "Hello from Web Server 2" | sudo tee /var/www/html/index.html
+sudo systemctl enable --now nginx
+
+
+Test each web server from another VM:
+curl http://192.168.10.11
+curl http://192.168.10.12
+Task 2: Implement basic load balancing
+On VM3, install HAProxy:
+sudo apt update
+sudo apt install haproxy -y
+sudo nano /etc/haproxy/haproxy.cfg
+
+
+Add this configuration at the end of the file:
+frontend web_frontend
+    bind *:80
+    default_backend web_servers
+
+backend web_servers
+    balance roundrobin
+    server web1 192.168.10.11:80 check
+    server web2 192.168.10.12:80 check
+
+
+Restart HAProxy:
+sudo systemctl restart haproxy
+sudo systemctl enable haproxy
+
+
+Test the load balancer:
+curl http://192.168.10.13
+Part 2: Server Consolidation
+Objective: Run multiple services on fewer VMs to improve resource utilization and reduce overhead.
+
+For a lab demonstration, you can consolidate the web services onto one Ubuntu VM rather than maintaining separate VMs.
+1. Take a snapshot of the existing VMs in VMware Workstation.
+2. Choose one VM to host both web applications.
+3. Configure the applications to use different ports, such as 8081 and 8082.
+4. Update HAProxy to forward traffic to the new ports.
+5. Shut down the redundant VM after confirming both services work.
+Example: create two simple web services using Python:
+mkdir -p ~/web1 ~/web2
+
+echo "Consolidated Web Server 1" > ~/web1/index.html
+echo "Consolidated Web Server 2" > ~/web2/index.html
+
+cd ~/web1
+python3 -m http.server 8081
+
+
+Open another terminal on the same VM:
+cd ~/web2
+python3 -m http.server 8082
+
+
+Update the HAProxy backend:
+backend web_servers
+    balance roundrobin
+    server web1 192.168.10.11:8081 check
+    server web2 192.168.10.11:8082 check
+
+
+This demonstrates service consolidation on a single VM. Actual consolidation onto fewer physical servers requires control over the underlying physical hosts; VMware Workstation alone does not provide enterprise cluster migration.
+Part 3: Fault Tolerance
+Objective: Keep the web service available when one backend server fails.
+
+The two web servers and HAProxy from Part 1 provide a basic fault-tolerance demonstration.
+1. Ensure both backend servers are running.
+2. Confirm the load balancer responds:
+   curl http://192.168.10.13
+3. Stop Nginx on VM1:
+   sudo systemctl stop nginx
+4. Test the load balancer again:
+   curl http://192.168.10.13
+HAProxy should detect that VM1 is unavailable and send requests to VM2.
+
+5. Restore VM1:
+sudo systemctl start nginx
